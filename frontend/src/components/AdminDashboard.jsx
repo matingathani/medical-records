@@ -15,12 +15,12 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     Promise.all([
-      axios.get(`${API_URL}/api/patients`, { headers }),
-      axios.get(`${API_URL}/api/records`, { headers })
+      axios.get(`${API_URL}/api/patients?limit=100`, { headers }),
+      axios.get(`${API_URL}/api/records?limit=100`, { headers })
     ])
       .then(([pRes, rRes]) => {
-        setPatients(pRes.data);
-        setRecords(rRes.data);
+        setPatients(pRes.data.data || pRes.data);
+        setRecords(rRes.data.data || rRes.data);
       })
       .catch(() => setError('Failed to load data'));
   }, []);

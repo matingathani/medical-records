@@ -11,55 +11,68 @@ router.use(authenticateToken);
 // Indexes reduce query latency by ~35% on large datasets (1000+ patients)
 router.get('/', async (req, res) => {
   try {
-    let query;
-    let params = [];
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    let countQuery, dataQuery, params = [], countParams = [];
 
     if (req.user.role === 'admin') {
-      // Admin sees all records with full patient and doctor info
-      query = `
-        SELECT
-          r.*,
-          p.first_name, p.last_name, p.date_of_birth,
-          u.username as doctor_username, u.email as doctor_email
+      countQuery = 'SELECT COUNT(*) FROM records';
+      dataQuery = `
+        SELECT r.*, p.first_name, p.last_name, p.date_of_birth,
+               u.username as doctor_username, u.email as doctor_email
         FROM records r
-        -- Index on records.patient_id for fast patient lookups
         JOIN patients p ON r.patient_id = p.id
-        -- Index on patients.assigned_doctor_id for fast doctor lookups
         LEFT JOIN users u ON p.assigned_doctor_id = u.id
         ORDER BY r.created_at DESC
+        LIMIT $1 OFFSET $2
       `;
+      params = [limit, offset];
     } else if (req.user.role === 'doctor') {
-      // Doctor sees records for their assigned patients only
-      query = `
-        SELECT
-          r.*,
-          p.first_name, p.last_name, p.date_of_birth,
-          u.username as doctor_username
+      countQuery = 'SELECT COUNT(*) FROM records r JOIN patients p ON r.patient_id = p.id WHERE p.assigned_doctor_id = $1';
+      countParams = [req.user.userId];
+      dataQuery = `
+        SELECT r.*, p.first_name, p.last_name, p.date_of_birth,
+               u.username as doctor_username
         FROM records r
         JOIN patients p ON r.patient_id = p.id
         LEFT JOIN users u ON p.assigned_doctor_id = u.id
         WHERE p.assigned_doctor_id = $1
         ORDER BY r.created_at DESC
+        LIMIT $2 OFFSET $3
       `;
-      params = [req.user.userId];
+      params = [req.user.userId, limit, offset];
     } else {
-      // Patient sees only their own records
-      query = `
-        SELECT
-          r.*,
-          p.first_name, p.last_name,
-          u.username as doctor_username
+      countQuery = 'SELECT COUNT(*) FROM records r JOIN patients p ON r.patient_id = p.id WHERE p.user_id = $1';
+      countParams = [req.user.userId];
+      dataQuery = `
+        SELECT r.*, p.first_name, p.last_name,
+               u.username as doctor_username
         FROM records r
         JOIN patients p ON r.patient_id = p.id
         LEFT JOIN users u ON p.assigned_doctor_id = u.id
         WHERE p.user_id = $1
         ORDER BY r.created_at DESC
+        LIMIT $2 OFFSET $3
       `;
-      params = [req.user.userId];
+      params = [req.user.userId, limit, offset];
     }
 
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(countQuery, countParams),
+      pool.query(dataQuery, params)
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      data: dataResult.rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    });
   } catch (err) {
     console.error('Get records error:', err);
     res.status(500).json({ error: 'Internal server error' });

@@ -1,5 +1,7 @@
 # Medical Records System
 
+![CI](https://github.com/matingathani/medical-records/actions/workflows/ci.yml/badge.svg)
+
 A role-based medical records management system with JWT authentication and PostgreSQL.
 
 ## Features

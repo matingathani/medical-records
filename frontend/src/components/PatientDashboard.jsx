@@ -11,7 +11,7 @@ export default function PatientDashboard() {
 
   useEffect(() => {
     axios.get(`${API_URL}/api/records`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setRecords(res.data))
+      .then((res) => setRecords(res.data.data || res.data))
       .catch(() => setError('Failed to load records'));
   }, []);
 

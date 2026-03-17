@@ -10,37 +10,61 @@ router.use(authenticateToken);
 // GET all patients - admin sees all, doctor sees assigned patients
 router.get('/', async (req, res) => {
   try {
-    let query;
-    let params = [];
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    let countQuery, dataQuery, params = [], countParams = [];
 
     if (req.user.role === 'admin') {
-      query = `
+      countQuery = 'SELECT COUNT(*) FROM patients';
+      dataQuery = `
         SELECT p.*, u.username as doctor_username
         FROM patients p
         LEFT JOIN users u ON p.assigned_doctor_id = u.id
         ORDER BY p.last_name, p.first_name
+        LIMIT $1 OFFSET $2
       `;
+      params = [limit, offset];
     } else if (req.user.role === 'doctor') {
-      query = `
+      countQuery = 'SELECT COUNT(*) FROM patients WHERE assigned_doctor_id = $1';
+      countParams = [req.user.userId];
+      dataQuery = `
         SELECT p.*, u.username as doctor_username
         FROM patients p
         LEFT JOIN users u ON p.assigned_doctor_id = u.id
         WHERE p.assigned_doctor_id = $1
         ORDER BY p.last_name, p.first_name
+        LIMIT $2 OFFSET $3
       `;
-      params = [req.user.userId];
+      params = [req.user.userId, limit, offset];
     } else {
-      query = `
+      countQuery = 'SELECT COUNT(*) FROM patients WHERE user_id = $1';
+      countParams = [req.user.userId];
+      dataQuery = `
         SELECT p.*, u.username as doctor_username
         FROM patients p
         LEFT JOIN users u ON p.assigned_doctor_id = u.id
         WHERE p.user_id = $1
+        LIMIT $2 OFFSET $3
       `;
-      params = [req.user.userId];
+      params = [req.user.userId, limit, offset];
     }
 
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(countQuery, countParams),
+      pool.query(dataQuery, params)
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      data: dataResult.rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    });
   } catch (err) {
     console.error('Get patients error:', err);
     res.status(500).json({ error: 'Internal server error' });
