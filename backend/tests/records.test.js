@@ -98,7 +98,7 @@ describe('GET /api/records', () => {
   test('admin sees all records', async () => {
     const res = await request(app).get('/api/records').set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body.data.length).toBeGreaterThan(0);
   });
 
   test('requires authentication', async () => {
@@ -108,8 +108,8 @@ describe('GET /api/records', () => {
 
   test('record has patient name fields', async () => {
     const res = await request(app).get('/api/records').set('Authorization', `Bearer ${adminToken}`);
-    expect(res.body[0].first_name).toBeDefined();
-    expect(res.body[0].last_name).toBeDefined();
+    expect(res.body.data[0].first_name).toBeDefined();
+    expect(res.body.data[0].last_name).toBeDefined();
   });
 });
 

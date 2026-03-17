@@ -61,14 +61,14 @@ describe('GET /api/patients', () => {
     await request(app).post('/api/patients').set('Authorization', `Bearer ${adminToken}`).send({ first_name: 'A', last_name: 'B' });
     const res = await request(app).get('/api/patients').set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body.data.length).toBeGreaterThan(0);
   });
 
   test('doctor sees only assigned patients', async () => {
     await request(app).post('/api/patients').set('Authorization', `Bearer ${doctorToken}`).send({ first_name: 'Doc', last_name: 'Patient' });
     const res = await request(app).get('/api/patients').set('Authorization', `Bearer ${doctorToken}`);
     expect(res.status).toBe(200);
-    res.body.forEach(p => expect(p.assigned_doctor_id).toBe(doctorId));
+    res.body.data.forEach(p => expect(p.assigned_doctor_id).toBe(doctorId));
   });
 
   test('requires authentication', async () => {
